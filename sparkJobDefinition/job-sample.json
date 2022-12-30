@@ -1,0 +1,34 @@
+{
+	"name": "job-sample",
+	"properties": {
+		"targetBigDataPool": {
+			"referenceName": "samplelzbz",
+			"type": "BigDataPoolReference"
+		},
+		"requiredSparkVersion": "3.2",
+		"language": "python",
+		"jobProperties": {
+			"name": "job-sample",
+			"file": "abfss://scripts@b3dldev.dfs.core.windows.net/jobs/sample/landzone-to-bronze.py",
+			"conf": {
+				"spark.dynamicAllocation.enabled": "true",
+				"spark.dynamicAllocation.minExecutors": "1",
+				"spark.dynamicAllocation.maxExecutors": "2",
+				"spark.autotune.trackingId": "96724114-f432-4306-a455-20473a9fa980"
+			},
+			"args": [
+				"--teste 123 --outroteste 456"
+			],
+			"jars": [],
+			"pyFiles": [
+				""
+			],
+			"files": [],
+			"driverMemory": "28g",
+			"driverCores": 4,
+			"executorMemory": "28g",
+			"executorCores": 4,
+			"numExecutors": 1
+		}
+	}
+}
