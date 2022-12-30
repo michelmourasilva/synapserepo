@@ -1,0 +1,17 @@
+{
+	"name": "SQL script 1",
+	"properties": {
+		"content": {
+			"query": "select eTag, id from \nOPENROWSET( BULK 'https://b3dldev.blob.core.windows.net/bronze-zone/data/sample' , FORMAT='delta') as rows\n\n\nIF NOT EXISTS (SELECT * FROM sys.databases WHERE name = 'b3')\nBEGIN\n  CREATE DATABASE b3;\nEND;\nGO\n\nUSE b3\nGO\n\nIF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = 'bronze')\nBEGIN\n  DECLARE @create_schema nvarchar(100) = 'CREATE SCHEMA bronze';\n  EXEC sp_executesql @tsql = @create_schema;\nEND;\nGO\n\nCREATE OR ALTER VIEW bronze.sample\nAS\nSELECT eTag, id\nFROM \n    OPENROWSET(\n        BULK 'https://b3dldev.blob.core.windows.net/bronze-zone/data/sample',\n        FORMAT='DELTA'\n    ) AS [result]\nGO\n\n\nCREATE MASTER KEY ENCRYPTION BY PASSWORD = 'T@pDug0723';\n\nCREATE DATABASE SCOPED CREDENTIAL DataLakeManagedIdentity\nWITH IDENTITY='Managed Identity'\n\n\nUSE master\nGO\nCREATE LOGIN [dev-synapse-analyst] FROM EXTERNAL PROVIDER;\nGO \n\nUSE b3\nGO\n\nCREATE USER [dev-synapse-analyst] FROM LOGIN [dev-synapse-analyst]\n\n--we need to grant references on the MI credential\nGRANT REFERENCES ON DATABASE SCOPED CREDENTIAL::[DataLakeManagedIdentity] TO [dev-synapse-analyst];\n--grant select on the external table and view\nGRANT SELECT ON bronze.sample TO [dev-synapse-analyst];\n",
+			"metadata": {
+				"language": "sql"
+			},
+			"currentConnection": {
+				"databaseName": "b3",
+				"poolName": "Built-in"
+			},
+			"resultLimit": 5000
+		},
+		"type": "SqlQuery"
+	}
+}
