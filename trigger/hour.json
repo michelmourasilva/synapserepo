@@ -17,7 +17,6 @@
 				"frequency": "Hour",
 				"interval": 1,
 				"startTime": "2022-12-30T12:10:00",
-				"endTime": "2022-12-30T00:10:00",
 				"timeZone": "E. South America Standard Time"
 			}
 		}
