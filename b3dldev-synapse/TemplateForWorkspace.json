@@ -1,0 +1,815 @@
+{
+	"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"workspaceName": {
+			"type": "string",
+			"metadata": "Workspace name",
+			"defaultValue": "b3dldev-synapse"
+		},
+		"b3dldev-synapse-WorkspaceDefaultSqlServer_connectionString": {
+			"type": "secureString",
+			"metadata": "Secure string for 'connectionString' of 'b3dldev-synapse-WorkspaceDefaultSqlServer'",
+			"defaultValue": "Integrated Security=False;Encrypt=True;Connection Timeout=30;Data Source=tcp:b3dldev-synapse.sql.azuresynapse.net,1433;Initial Catalog=@{linkedService().DBName}"
+		},
+		"b3dldev-synapse-WorkspaceDefaultStorage_properties_typeProperties_url": {
+			"type": "string",
+			"defaultValue": "https://b3dldev.dfs.core.windows.net"
+		}
+	},
+	"variables": {
+		"workspaceId": "[concat('Microsoft.Synapse/workspaces/', parameters('workspaceName'))]"
+	},
+	"resources": [
+		{
+			"name": "[concat(parameters('workspaceName'), '/b3dldev-synapse-WorkspaceDefaultSqlServer')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"parameters": {
+					"DBName": {
+						"type": "String"
+					}
+				},
+				"annotations": [],
+				"type": "AzureSqlDW",
+				"typeProperties": {
+					"connectionString": "[parameters('b3dldev-synapse-WorkspaceDefaultSqlServer_connectionString')]"
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/b3dldev-synapse-WorkspaceDefaultStorage')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"annotations": [],
+				"type": "AzureBlobFS",
+				"typeProperties": {
+					"url": "[parameters('b3dldev-synapse-WorkspaceDefaultStorage_properties_typeProperties_url')]"
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/AutoResolveIntegrationRuntime')]",
+			"type": "Microsoft.Synapse/workspaces/integrationRuntimes",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"type": "Managed",
+				"typeProperties": {
+					"computeProperties": {
+						"location": "AutoResolve",
+						"dataFlowProperties": {
+							"computeType": "General",
+							"coreCount": 8,
+							"timeToLive": 0
+						}
+					}
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/WorkspaceSystemIdentity')]",
+			"type": "Microsoft.Synapse/workspaces/credentials",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"type": "ManagedIdentity",
+				"typeProperties": {}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/SQL script 1')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"content": {
+					"query": "select eTag, id from \nOPENROWSET( BULK 'https://b3dldev.blob.core.windows.net/bronze-zone/data/sample' , FORMAT='delta') as rows\n\n\nIF NOT EXISTS (SELECT * FROM sys.databases WHERE name = 'b3')\nBEGIN\n  CREATE DATABASE b3;\nEND;\nGO\n\nUSE b3\nGO\n\nIF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = 'bronze')\nBEGIN\n  DECLARE @create_schema nvarchar(100) = 'CREATE SCHEMA bronze';\n  EXEC sp_executesql @tsql = @create_schema;\nEND;\nGO\n\nCREATE OR ALTER VIEW bronze.sample\nAS\nSELECT eTag, id\nFROM \n    OPENROWSET(\n        BULK 'https://b3dldev.blob.core.windows.net/bronze-zone/data/sample',\n        FORMAT='DELTA'\n    ) AS [result]\nGO\n\n\nCREATE MASTER KEY ENCRYPTION BY PASSWORD = 'T@pDug0723';\n\nCREATE DATABASE SCOPED CREDENTIAL DataLakeManagedIdentity\nWITH IDENTITY='Managed Identity'\n\n\nUSE master\nGO\nCREATE LOGIN [dev-synapse-analyst] FROM EXTERNAL PROVIDER;\nGO \n\nUSE b3\nGO\n\nCREATE USER [dev-synapse-analyst] FROM LOGIN [dev-synapse-analyst]\n\n--we need to grant references on the MI credential\nGRANT REFERENCES ON DATABASE SCOPED CREDENTIAL::[DataLakeManagedIdentity] TO [dev-synapse-analyst];\n--grant select on the external table and view\nGRANT SELECT ON bronze.sample TO [dev-synapse-analyst];\n",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "b3",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/job-sample')]",
+			"type": "Microsoft.Synapse/workspaces/sparkJobDefinitions",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"targetBigDataPool": {
+					"referenceName": "samplelzbz",
+					"type": "BigDataPoolReference"
+				},
+				"requiredSparkVersion": "3.2",
+				"language": "python",
+				"scanFolder": false,
+				"jobProperties": {
+					"name": "job-sample",
+					"file": "abfss://scripts@b3dldev.dfs.core.windows.net/jobs/sample/landzone-to-bronze.py",
+					"conf": {
+						"spark.dynamicAllocation.enabled": "true",
+						"spark.dynamicAllocation.minExecutors": "1",
+						"spark.dynamicAllocation.maxExecutors": "2",
+						"spark.autotune.trackingId": "96724114-f432-4306-a455-20473a9fa980"
+					},
+					"args": [
+						"--teste",
+						"123",
+						"--outroteste",
+						"456"
+					],
+					"jars": [],
+					"pyFiles": [
+						""
+					],
+					"files": [],
+					"driverMemory": "28g",
+					"driverCores": 4,
+					"executorMemory": "28g",
+					"executorCores": 4,
+					"numExecutors": 1
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/Notebook 1')]",
+			"type": "Microsoft.Synapse/workspaces/notebooks",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"nbformat": 4,
+				"nbformat_minor": 2,
+				"bigDataPool": {
+					"referenceName": "samplelzbz",
+					"type": "BigDataPoolReference"
+				},
+				"sessionProperties": {
+					"driverMemory": "28g",
+					"driverCores": 4,
+					"executorMemory": "28g",
+					"executorCores": 4,
+					"numExecutors": 2,
+					"runAsWorkspaceSystemIdentity": false,
+					"conf": {
+						"spark.dynamicAllocation.enabled": "false",
+						"spark.dynamicAllocation.minExecutors": "2",
+						"spark.dynamicAllocation.maxExecutors": "2",
+						"spark.autotune.trackingId": "b36992fa-48c5-400b-ad4b-c1447afcff3a"
+					}
+				},
+				"metadata": {
+					"saveOutput": true,
+					"synapse_widget": {
+						"version": "0.1"
+					},
+					"enableDebugMode": false,
+					"kernelspec": {
+						"name": "synapse_pyspark",
+						"display_name": "Synapse PySpark"
+					},
+					"language_info": {
+						"name": "python"
+					},
+					"a365ComputeOptions": {
+						"id": "/subscriptions/ecec4f91-c527-41b9-bfb2-4a407f70da1e/resourceGroups/b3dl-dev/providers/Microsoft.Synapse/workspaces/b3dldev-synapse/bigDataPools/samplelzbz",
+						"name": "samplelzbz",
+						"type": "Spark",
+						"endpoint": "https://b3dldev-synapse.dev.azuresynapse.net/livyApi/versions/2019-11-01-preview/sparkPools/samplelzbz",
+						"auth": {
+							"type": "AAD",
+							"authResource": "https://dev.azuresynapse.net",
+							"authHeader": null
+						},
+						"sparkVersion": "3.2",
+						"nodeCount": 3,
+						"cores": 4,
+						"memory": 28,
+						"extraHeader": null
+					},
+					"sessionKeepAliveTimeout": 30
+				},
+				"cells": [
+					{
+						"cell_type": "code",
+						"source": [
+							"import pyspark\n",
+							"from pyspark.sql import SparkSession\n",
+							"from pyspark.conf import SparkConf\n",
+							"\n",
+							"from pyspark.sql.functions import (\n",
+							"    col,\n",
+							"    date_format,\n",
+							"    input_file_name,\n",
+							"    current_timestamp,\n",
+							"    explode,\n",
+							"    explode_outer\n",
+							")\n",
+							"import pyspark.sql.types as T     \n",
+							"from delta.tables import *\n",
+							"\n",
+							"from customPackage.common import AzureHandler, teste"
+						],
+						"outputs": [],
+						"execution_count": 1
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"source_hidden": false,
+								"outputs_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"spark = AzureHandler(sparkprocess=True).spark"
+						],
+						"outputs": [],
+						"execution_count": 2
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"source_hidden": false,
+								"outputs_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"AZURE_CLIENT_ID     = \"eb7275f2-f70c-4e36-979b-c7ddf088f5bb\"\n",
+							"AZURE_CLIENT_SECRET = \"Aye8Q~Z.4GIyfTdp0WCyXL7WAXOHXG7u_Wv7udpi\"\n",
+							"AZURE_TENANT_ID     = \"25888ccc-9661-4e76-9b1e-df1b99225c93\"\n",
+							"STORAGE_NAME        = 'b3dldev'\n",
+							"CONTAINER_STORAGE_NAME = 'landing-zone'\n",
+							"DEFAULT_PATH        = f\"abfss://{CONTAINER_STORAGE_NAME}@{STORAGE_NAME}.dfs.core.windows.net\"\n",
+							"LANDING_ZONE_PATH   = \"/jobs/sample\"\n",
+							"\n",
+							"BRONZE_PATH         = \"abfss://bronze-zone@b3dldev.dfs.core.windows.net/data/sample\""
+						],
+						"outputs": [],
+						"execution_count": 5
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"source_hidden": false,
+								"outputs_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"schema = T.StructType([\n",
+							"    T.StructField(\"eTag\", T.StringType(), True)\n",
+							"    ,T.StructField(\"id\", T.StringType(), True)\n",
+							"    ,T.StructField(\"status\", T.StringType(), True)   \n",
+							"    ,T.StructField(\"twinETag\", T.StringType(), True) \n",
+							"    ,T.StructField(\"capabilities\", T.StructType([\n",
+							"        T.StructField(\"iotEdge\", T.BooleanType(), True), \n",
+							"    ]))\n",
+							"    ,T.StructField(\"authentication\", T.StructType([\n",
+							"        T.StructField('type', T.StringType(), True)\n",
+							"        ,T.StructField(\"symmetricKey\", T.StructType([\n",
+							"            T.StructField(\"primaryKey\", T.StringType(), True), \n",
+							"            T.StructField(\"secondaryKey\", T.StringType(), True)\n",
+							"        ]))\n",
+							"        ,T.StructField('x509Thumbprint', T.StructType([\n",
+							"          T.StructField(\"primaryThumbprint\", T.StringType(), True), \n",
+							"          T.StructField(\"secondaryThumbprint\", T.StringType(), True), \n",
+							"        ]))\n",
+							"    ]))\n",
+							"    ,T.StructField(\"properties\", T.StructType([\n",
+							"         T.StructField(\"desired\", T.StructType([\n",
+							"             T.StructField(\"deviceId\", T.StringType(), True)\n",
+							"         ]))\n",
+							"        ,T.StructField(\"reported\", T.StructType([\n",
+							"            T.StructField(\"SerialNumber\", T.StringType(), True)\n",
+							"            , T.StructField(\"UserID\", T.StringType(), True)\n",
+							"            , T.StructField(\"Brand\", T.StringType(), True)\n",
+							"            , T.StructField(\"DeviceId\", T.StringType(), True)\n",
+							"            , T.StructField(\"Internet_WAN_IP\", T.StringType(), True)\n",
+							"            , T.StructField(\"ProductClass\", T.StringType(), True)\n",
+							"            , T.StructField(\"Timestamp_Report\", T.LongType(), True)\n",
+							"            , T.StructField(\"Datablock_id\", T.StructType([\n",
+							"                T.StructField(\"Watchdog_Config\", T.StructType([\n",
+							"                    T.StructField(\"WATCHDOG_E_IND\", T.BooleanType(), True),\n",
+							"                    T.StructField(\"WATCHDOG_M_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"BOOT_TIMER_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"PPP_WD_CHK_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"PPP_ALER_AF_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"PPP_MAX_RES_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"PPP_MAX_RPE_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"PPP_PING_IP_DES\", T.StringType(), True),\n",
+							"                    T.StructField(\"PPP_LOOKDOM_DES\", T.StringType(), True),\n",
+							"                    T.StructField(\"TR069_R_TIM_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"TR069_P_TIM_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"ARP_SAMPLT_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"ARP_RTIMER_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"ARP_RTABLE_IND\", T.BooleanType(), True),\n",
+							"                    T.StructField(\"ARP_QUERY_IND\", T.BooleanType(), True),\n",
+							"                    T.StructField(\"ROUTE_TIMER_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"ROUTE_QUERY_IND\", T.BooleanType(), True),\n",
+							"                    T.StructField(\"INFO_SMPLT_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"INFO_RPRTT_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"INFO_PROC_DES\", T.StringType(), True),\n",
+							"                    T.StructField(\"IGMP_SMPLT_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"IGMP_RPRTT_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"IGMP_QUERY_IND\", T.BooleanType(), True),\n",
+							"                    T.StructField(\"VOIP_S_MODE_IND\", T.ShortType(), True),\n",
+							"                    T.StructField(\"VOIP_S_SMPL_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"VOIP_S_REP_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"VOIPSTATS_Q_DES\", T.ShortType(), True),\n",
+							"                    T.StructField(\"DHCP_VOIP_D_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"DHCP_VOIP_T_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"DHCP_VOIP_P_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"DHCP_VOIP_H_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"DHCPVOIP_AK_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"DHCPVOIP_AT_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"DHCP_VOIP_E_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"DHCP_VOIP_R_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"VOIP_REG_T_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"VOIP_IM_C_E_IND\", T.BooleanType(), True),\n",
+							"                    T.StructField(\"FW_QUERY_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"FW_WD_CHCHG_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"GPON_SMPLT_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"GPON_RPRT_NUM\", T.ShortType(), True)\n",
+							"                 ])),\n",
+							"                T.StructField(\"Device_Info\", T.StructType([\n",
+							"                    T.StructField(\"SAM_INT_NUM\", T.IntegerType(), True),\n",
+							"                    T.StructField(\"REP_INT_NUM\", T.IntegerType(), True),\n",
+							"                    T.StructField(\"SERIAL_NUM_DES\", T.StringType(), True),\n",
+							"                    T.StructField(\"DEVICE_ID\", T.StringType(), True),\n",
+							"                    T.StructField(\"MODEL_NAME\", T.StringType(), True),\n",
+							"                    T.StructField(\"MANUFACT_DES\", T.StringType(), True),\n",
+							"                    T.StructField(\"FW_VR_DES\", T.StringType(), True),\n",
+							"                    T.StructField(\"HW_VR_DES\", T.StringType(), True),\n",
+							"                    T.StructField(\"LOCATION_C_ID\", T.StringType(), True),\n",
+							"                    T.StructField(\"REBOOT_C_DES\", T.StringType(), True),\n",
+							"                    T.StructField(\"REBOOT_TM_NUM\", T.LongType(), True),\n",
+							"                    T.StructField(\"LAN_INTF_NAME\", T.StringType(), True),\n",
+							"                    T.StructField(\"LAN_IP_DES\", T.StringType(), True),\n",
+							"                    T.StructField(\"LAN_DNS_DES\", T.StringType(), True),\n",
+							"                    T.StructField(\"CPE_AVAIL_P_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"WD_ACS_RTYP_DES\", T.StringType(), True),\n",
+							"                    T.StructField(\"WD_ACS_TM\", T.LongType(), True),\n",
+							"                    T.StructField(\"WA_TR_CUSER_DES\", T.StringType(), True),\n",
+							"                    T.StructField(\"WA_TR_CPASS_DES\", T.StringType(), True),\n",
+							"                    T.StructField(\"WA_TR_AUSER_DES\", T.StringType(), True),\n",
+							"                    T.StructField(\"WA_TR_PINFO_NUM\", T.IntegerType(), True),\n",
+							"                    T.StructField(\"CLI_VERSION_DES\", T.StringType(), True),    \n",
+							"                    T.StructField(\"TIMEZONE_DES\", T.StringType(), True),\n",
+							"                    T.StructField(\"OPAH_VER_DES\", T.StringType(), True),\n",
+							"                     T.StructField(\"DR_VER_DES\", T.StringType(), True),\n",
+							"                     T.StructField(\"PLOAM_PWD_DES\", T.StringType(), True),\n",
+							"                     T.StructField(\"OPAH_DBVER_DES\", T.StringType(), True),\n",
+							"                 ])),\n",
+							"                T.StructField(\"TX_POWER_TABLE\", T.StructType([\n",
+							"                    T.StructField(\"INTERFACE_NAME\", T.StringType(), True),\n",
+							"                    T.StructField(\"POWER_INFO\", T.ArrayType(\n",
+							"                        T.StructType([\n",
+							"                            T.StructField(\"CHANNEL_ID\", T.ShortType(), True),\n",
+							"                            T.StructField(\"SPATIAL_STR_NUM\", T.ShortType(), True),\n",
+							"                            T.StructField(\"BEAMF_STA_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"TX_PVAL_80M_NUM\", T.DecimalType(), True),\n",
+							"                            T.StructField(\"TX_PVAL_40M_NUM\", T.DecimalType(), True),\n",
+							"                            T.StructField(\"TX_PVAL_20M_NUM\", T.DecimalType(), True),\n",
+							"                        ])\n",
+							"                    ))\n",
+							"                ])),\n",
+							"                 T.StructField(\"Roaming_Event\", T.StructType([\n",
+							"                     T.StructField(\"SAM_INT_NUM\", T.IntegerType(), True),\n",
+							"                     T.StructField(\"REP_INT_NUM\", T.IntegerType(), True)\n",
+							"                 ])),\n",
+							"                T.StructField(\"Steering_Event\", T.StructType([\n",
+							"                    T.StructField(\"SAM_INT_NUM\", T.IntegerType(), True),\n",
+							"                    T.StructField(\"REP_INT_NUM\", T.IntegerType(), True)\n",
+							"                ])),\n",
+							"               T.StructField(\"Watchdog_GPON\", T.StructType([\n",
+							"                    T.StructField(\"CPE_OLT_MAN_DES\", T.StringType(), True),\n",
+							"                    T.StructField(\"CPE_OLT_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"CPE_OLT_C_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"CPE_OLT_P_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"CPE_OLT_T_DES\", T.StringType(), True),\n",
+							"                    T.StructField(\"CPE_PON_ID\", T.StringType(), True)\n",
+							"               ])),\n",
+							"                T.StructField(\"Stations_Periodic\", T.StructType([\n",
+							"                    T.StructField(\"SAM_INT_NUM\", T.IntegerType(), True),\n",
+							"                    T.StructField(\"REP_INT_NUM\", T.IntegerType(), True)\n",
+							"                ])),\n",
+							"                T.StructField(\"Neighbors\", T.StructType([\n",
+							"                    T.StructField(\"SAM_INT_NUM\", T.IntegerType(), True),\n",
+							"                    T.StructField(\"REP_INT_NUM\", T.IntegerType(), True)        \n",
+							"                ])),\n",
+							"                T.StructField(\"WiFi_Interface\", T.StructType([\n",
+							"                    T.StructField(\"SAM_INT_NUM\", T.IntegerType(), True),\n",
+							"                    T.StructField(\"REP_INT_NUM\", T.IntegerType(), True),\n",
+							"                    T.StructField(\"INTERFACES_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"WIFI_FREQ_DES\", T.StructType([\n",
+							"                        T.StructField(\"2G\", T.StructType([\n",
+							"                            T.StructField(\"MANUFACT_DES\", T.StringType(), True),\n",
+							"                            T.StructField(\"DRIVER_VR_DES\", T.StringType(), True),\n",
+							"                            T.StructField(\"INTF_TYPE_DES\", T.StringType(), True),\n",
+							"                            T.StructField(\"INTF_BAND_IND\", T.StringType(), True),\n",
+							"                            T.StructField(\"WIFI_MODE_DES\", T.StringType(), True),\n",
+							"                            T.StructField(\"MAX_BWIDTH_QT\", T.StringType(), True),\n",
+							"                            T.StructField(\"BANDWIDTH_QT\", T.StringType(), True),\n",
+							"                            T.StructField(\"POWER_NUM\", T.DecimalType(), True),\n",
+							"                            T.StructField(\"BEACON_INTL_NUM\", T.ShortType(), True),\n",
+							"                            T.StructField(\"DTIM_PERIOD_NUM\", T.ShortType(), True),\n",
+							"                            T.StructField(\"BEACON_RATE_CD\", T.StringType(), True),\n",
+							"                            T.StructField(\"P_MGMT_RATE_CD\", T.StringType(), True),\n",
+							"                            T.StructField(\"ALLWD_CHANS_DES\", T.StringType(), True),\n",
+							"                            T.StructField(\"CURRENT_CHN_ID\", T.ShortType(), True),\n",
+							"                            T.StructField(\"AUTOBWIDTH_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"SECOND_CHN_ID\", T.StringType(), True),\n",
+							"                            T.StructField(\"AUTO_CHN_E_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"MAX_STA_PHY_NUM\", T.ShortType(), True),\n",
+							"                            T.StructField(\"DYN_FRQ_SEL_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"SCS_ENABLED_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"SCS_NUM\", T.ShortType(), True),\n",
+							"                            T.StructField(\"TX_POWER_NUM\", T.DecimalType(), True),\n",
+							"                            T.StructField(\"G_INTL_DES\", T.StringType(), True),\n",
+							"                            T.StructField(\"EDCA_A_STA_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"EDCA_A_NUM\", T.ShortType(), True),\n",
+							"                            T.StructField(\"QHOP_STATUS_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"QHOP_MACS_DES\", T.StringType(), True),\n",
+							"                            T.StructField(\"BEAMF_STA_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"WIFI_PFM_S_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"WIFI_FAIR_S_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"WIFI_RTS_TH_NUM\", T.ShortType(), True),\n",
+							"                            T.StructField(\"WIFI_MIMO_S_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"CARRIER_NUM\", T.ShortType(), True),\n",
+							"                            T.StructField(\"WIFI_PHY_S_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"ROAMING_STA_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"STATICIP_A_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"VHT_STATUS_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"Q_MGMT_STA_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"LED_GPIO_S_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"MAUI_AG_S_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"MAX_BOT_CAC_NUM\", T.ShortType(), True),\n",
+							"                            T.StructField(\"COC_MNDFS_S_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"FW_NO_MU_S_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"SONIC_Q_STA_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"WPS_LC_ERR_DES\", T.StringType(), True),\n",
+							"                            T.StructField(\"BSSID_DES\", T.MapType(T.StringType(),T.StructType([\n",
+							"                                T.StructField(\"INTERFACE_NAME\", T.StringType(), True),\n",
+							"                                T.StructField(\"COUNTRY_ID\", T.StringType(), True),\n",
+							"                                T.StructField(\"INTF_STA_IND\", T.BooleanType(), True),\n",
+							"                                T.StructField(\"SSID_DES\", T.StringType(), True),\n",
+							"                                T.StructField(\"ENCRYPTION_IND\", T.StringType(), True),\n",
+							"                                T.StructField(\"SECURITY_IND\", T.StringType(), True),\n",
+							"                                T.StructField(\"PASSWORD_DES\", T.StringType(), True),\n",
+							"                                T.StructField(\"M_STA_INTF_NUM\", T.ShortType(), True),\n",
+							"                                T.StructField(\"WLESS_M_EXT_IND\", T.BooleanType(), True),\n",
+							"                                T.StructField(\"SSID_HIDE_IND\", T.BooleanType(), True),\n",
+							"                                T.StructField(\"WPS_STATUS_IND\", T.BooleanType(), True),\n",
+							"                                T.StructField(\"WPS_MODE_DES\", T.StringType(), True),\n",
+							"                                T.StructField(\"INTF_ISOL_S_IND\", T.BooleanType(), True),\n",
+							"                                T.StructField(\"WHITEL_S_IND\", T.BooleanType(), True),\n",
+							"                             ]))),\n",
+							"                        ])),\n",
+							"                        T.StructField(\"5G\", T.StructType([\n",
+							"                            T.StructField(\"MANUFACT_DES\", T.StringType(), True),\n",
+							"                            T.StructField(\"DRIVER_VR_DES\", T.StringType(), True),\n",
+							"                            T.StructField(\"INTF_TYPE_DES\", T.StringType(), True),\n",
+							"                            T.StructField(\"INTF_BAND_IND\", T.StringType(), True),\n",
+							"                            T.StructField(\"WIFI_MODE_DES\", T.StringType(), True),\n",
+							"                            T.StructField(\"MAX_BWIDTH_QT\", T.StringType(), True),\n",
+							"                            T.StructField(\"BANDWIDTH_QT\", T.StringType(), True),\n",
+							"                            T.StructField(\"POWER_NUM\", T.DecimalType(), True),\n",
+							"                            T.StructField(\"BEACON_INTL_NUM\", T.ShortType(), True),\n",
+							"                            T.StructField(\"DTIM_PERIOD_NUM\", T.ShortType(), True),\n",
+							"                            T.StructField(\"BEACON_RATE_CD\", T.StringType(), True),\n",
+							"                            T.StructField(\"P_MGMT_RATE_CD\", T.StringType(), True),\n",
+							"                            T.StructField(\"ALLWD_CHANS_DES\", T.StringType(), True),\n",
+							"                            T.StructField(\"CURRENT_CHN_ID\", T.ShortType(), True),\n",
+							"                            T.StructField(\"AUTOBWIDTH_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"SECOND_CHN_ID\", T.StringType(), True),\n",
+							"                            T.StructField(\"AUTO_CHN_E_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"MAX_STA_PHY_NUM\", T.ShortType(), True),\n",
+							"                            T.StructField(\"DYN_FRQ_SEL_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"SCS_ENABLED_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"SCS_NUM\", T.ShortType(), True),\n",
+							"                            T.StructField(\"TX_POWER_NUM\", T.DecimalType(), True),\n",
+							"                            T.StructField(\"G_INTL_DES\", T.StringType(), True),\n",
+							"                            T.StructField(\"EDCA_A_STA_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"EDCA_A_NUM\", T.ShortType(), True),\n",
+							"                            T.StructField(\"QHOP_STATUS_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"QHOP_MACS_DES\", T.StringType(), True),\n",
+							"                            T.StructField(\"BEAMF_STA_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"WIFI_PFM_S_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"WIFI_FAIR_S_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"WIFI_RTS_TH_NUM\", T.ShortType(), True),\n",
+							"                            T.StructField(\"WIFI_MIMO_S_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"CARRIER_NUM\", T.ShortType(), True),\n",
+							"                            T.StructField(\"WIFI_PHY_S_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"ROAMING_STA_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"STATICIP_A_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"VHT_STATUS_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"Q_MGMT_STA_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"LED_GPIO_S_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"MAUI_AG_S_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"MAX_BOT_CAC_NUM\", T.ShortType(), True),\n",
+							"                            T.StructField(\"COC_MNDFS_S_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"FW_NO_MU_S_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"SONIC_Q_STA_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"WPS_LC_ERR_DES\", T.StringType(), True),\n",
+							"                            T.StructField(\"BSSID_DES\", T.MapType(T.StringType(),T.StructType([\n",
+							"                                T.StructField(\"INTERFACE_NAME\", T.StringType(), True),\n",
+							"                                T.StructField(\"COUNTRY_ID\", T.StringType(), True),\n",
+							"                                T.StructField(\"INTF_STA_IND\", T.BooleanType(), True),\n",
+							"                                T.StructField(\"SSID_DES\", T.StringType(), True),\n",
+							"                                T.StructField(\"ENCRYPTION_IND\", T.StringType(), True),\n",
+							"                                T.StructField(\"SECURITY_IND\", T.StringType(), True),\n",
+							"                                T.StructField(\"PASSWORD_DES\", T.StringType(), True),\n",
+							"                                T.StructField(\"M_STA_INTF_NUM\", T.ShortType(), True),\n",
+							"                                T.StructField(\"WLESS_M_EXT_IND\", T.BooleanType(), True),\n",
+							"                                T.StructField(\"SSID_HIDE_IND\", T.BooleanType(), True),\n",
+							"                                T.StructField(\"WPS_STATUS_IND\", T.BooleanType(), True),\n",
+							"                                T.StructField(\"WPS_MODE_DES\", T.StringType(), True),\n",
+							"                                T.StructField(\"INTF_ISOL_S_IND\", T.BooleanType(), True),\n",
+							"                                T.StructField(\"WHITEL_S_IND\", T.BooleanType(), True),\n",
+							"                            ]))),\n",
+							"                        ])),\n",
+							"                    ]))\n",
+							"                ])),\n",
+							"                T.StructField(\"Ethernet_Interface\", T.StructType([\n",
+							"                    T.StructField(\"SAM_INT_NUM\", T.IntegerType(), True),\n",
+							"                    T.StructField(\"REP_INT_NUM\", T.IntegerType(), True),\n",
+							"                    T.StructField(\"INTERFACES_NUM\", T.ShortType(), True),\n",
+							"                    T.StructField(\"MANUFACT_DES\", T.StringType(), True),\n",
+							"                    T.StructField(\"DRIVER_VR_DES\", T.StringType(), True),\n",
+							"                    T.StructField(\"MAX_BWIDTH_QT\", T.StringType(), True),\n",
+							"                   T.StructField(\"INTERFACE_NAME\", T.StructType([\n",
+							"                        T.StructField(\"eth0_0\", T.StructType([\n",
+							"                            T.StructField(\"BANDWIDTH_QT\", T.StringType(), True),\n",
+							"                            T.StructField(\"INTF_STA_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"INTF_MAC_DES\", T.StringType(), True),\n",
+							"                        ])),\n",
+							"                        T.StructField(\"eth1_0\", T.StructType([\n",
+							"                            T.StructField(\"BANDWIDTH_QT\", T.StringType(), True),\n",
+							"                            T.StructField(\"INTF_STA_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"INTF_MAC_DES\", T.StringType(), True),\n",
+							"                        ])),\n",
+							"                        T.StructField(\"eth2_0\", T.StructType([\n",
+							"                            T.StructField(\"BANDWIDTH_QT\", T.StringType(), True),\n",
+							"                            T.StructField(\"INTF_STA_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"INTF_MAC_DES\", T.StringType(), True),\n",
+							"                        ])),\n",
+							"                        T.StructField(\"eth3_0\", T.StructType([\n",
+							"                            T.StructField(\"BANDWIDTH_QT\", T.StringType(), True),\n",
+							"                            T.StructField(\"INTF_STA_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"INTF_MAC_DES\", T.StringType(), True),\n",
+							"                        ]))\n",
+							"                   ]))\n",
+							"                ])),\n",
+							"                T.StructField(\"WAN_Connection\", T.StructType([\n",
+							"                    T.StructField(\"WAN_INTF_NAME\", T.StructType([\n",
+							"                        T.StructField(\"ppp0_1\", T.StructType([\n",
+							"                            T.StructField(\"DNS_S_IP_DES\", T.StringType(), True),\n",
+							"                            T.StructField(\"DNS_NET_A_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"WAN_IP_DES\", T.StringType(), True),\n",
+							"                            T.StructField(\"WAN_IP_DYNA_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"MAC_ADDRESS_DES\", T.StringType(), True),\n",
+							"                            T.StructField(\"WAN_CON_STA_IND\", T.StringType(), True),\n",
+							"                            T.StructField(\"VLAN_ID_NUM\", T.ShortType(), True),\n",
+							"                            T.StructField(\"VLAN_PRIOTY_NUM\", T.ShortType(), True),\n",
+							"                        ])),\n",
+							"                        T.StructField(\"veip0_2\", T.StructType([\n",
+							"                            T.StructField(\"DNS_S_IP_DES\", T.StringType(), True),\n",
+							"                            T.StructField(\"DNS_NET_A_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"WAN_IP_DES\", T.StringType(), True),\n",
+							"                            T.StructField(\"WAN_IP_DYNA_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"MAC_ADDRESS_DES\", T.StringType(), True),\n",
+							"                            T.StructField(\"WAN_CON_STA_IND\", T.StringType(), True),\n",
+							"                            T.StructField(\"VLAN_ID_NUM\", T.ShortType(), True),\n",
+							"                            T.StructField(\"VLAN_PRIOTY_NUM\", T.ShortType(), True),\n",
+							"                        ])),\n",
+							"                        T.StructField(\"veip0_3\", T.StructType([\n",
+							"                            T.StructField(\"DNS_S_IP_DES\", T.StringType(), True),\n",
+							"                            T.StructField(\"DNS_NET_A_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"WAN_IP_DES\", T.StringType(), True),\n",
+							"                            T.StructField(\"WAN_IP_DYNA_IND\", T.BooleanType(), True),\n",
+							"                            T.StructField(\"MAC_ADDRESS_DES\", T.StringType(), True),\n",
+							"                            T.StructField(\"WAN_CON_STA_IND\", T.StringType(), True),\n",
+							"                            T.StructField(\"VLAN_ID_NUM\", T.ShortType(), True),\n",
+							"                            T.StructField(\"VLAN_PRIOTY_NUM\", T.ShortType(), True),\n",
+							"                        ]))\n",
+							"                    ])),\n",
+							"                ])),\n",
+							"                T.StructField(\"Watchdog_Periodic_Info_DNS\", T.StructType([\n",
+							"                    T.StructField(\"TIMESTAMP_TM\", T.LongType(), True),\n",
+							"                    T.StructField(\"PRIMARY_DNS_DES\", T.StringType(), True),\n",
+							"                    T.StructField(\"SECOND_DNS_DES\", T.StringType(), True),\n",
+							"                ])),\n",
+							"                T.StructField(\"Watchdog_Boot\", T.StructType([\n",
+							"                    T.StructField(\"TIMESTAMP_TM\", T.LongType(), True),\n",
+							"                    T.StructField(\"Static\", T.StructType([\n",
+							"                        T.StructField(\"MANUFACT_DES\", T.StringType(), True),\n",
+							"                        T.StructField(\"MODEL_NAME\", T.StringType(), True),\n",
+							"                        T.StructField(\"CPE_BOARD_ID\", T.StringType(), True),\n",
+							"                        T.StructField(\"CPE_GPON_SN_DES\", T.StringType(), True),\n",
+							"                        T.StructField(\"CPE_ONT_ID\", T.StringType(), True),\n",
+							"                        T.StructField(\"CPE_HW_VR_DES\", T.StringType(), True),\n",
+							"                        T.StructField(\"CPE_M_CHIP_DES\", T.StringType(), True),\n",
+							"                        T.StructField(\"WIFI2G_CHIP_DES\", T.StringType(), True),\n",
+							"                        T.StructField(\"WIFI5G_CHIP_DES\", T.StringType(), True),\n",
+							"                        T.StructField(\"CPE_BOSA_M_TM\", T.StringType(), True),\n",
+							"                        T.StructField(\"CPE_BOSA_V_DES\", T.StringType(), True),\n",
+							"                        T.StructField(\"CPE_BOSA_T_DES\", T.StringType(), True),\n",
+							"                        T.StructField(\"CPE_BOSA_SN_DES\", T.StringType(), True),\n",
+							"                        T.StructField(\"CPE_DRAM_NUM\", T.ShortType(), True),\n",
+							"                        T.StructField(\"CPE_NAND_F_NUM\", T.ShortType(), True),\n",
+							"                        T.StructField(\"CPU_IN_USE_NUM\", T.ShortType(), True),\n",
+							"                        T.StructField(\"CPE_SN_DES\", T.StringType(), True),\n",
+							"                        T.StructField(\"CPE_OUI_DES\", T.StringType(), True),\n",
+							"                        T.StructField(\"CPE_P_CLASS_DES\", T.StringType(), True),\n",
+							"                    ])),\n",
+							"                    T.StructField(\"Software\", T.StructType([\n",
+							"                        T.StructField(\"CPE_SV_TR_DES\", T.StringType(), True),\n",
+							"                        T.StructField(\"CPE_SV_OLT_DES\", T.StringType(), True),\n",
+							"                        T.StructField(\"CPE_BOOT_VR_DES\", T.StringType(), True),\n",
+							"                        T.StructField(\"DRVER_VR_2G_DES\", T.StringType(), True),\n",
+							"                        T.StructField(\"DRVER_VR_5G_DES\", T.StringType(), True),\n",
+							"                        T.StructField(\"WD_MAX_CON_NUM\", T.IntegerType(), True),\n",
+							"                        T.StructField(\"WD_MAX_CUDP_NUM\", T.ShortType(), True),\n",
+							"                        T.StructField(\"WD_MAX_CTCP_NUM\", T.IntegerType(), True),\n",
+							"                    ])),\n",
+							"                    T.StructField(\"Configuration\", T.StructType([\n",
+							"                        T.StructField(\"WDCPE_DEVAI_IND\", T.BooleanType(), True),\n",
+							"                        T.StructField(\"CPE_SIPTV_C_IND\", T.BooleanType(), True),\n",
+							"                        T.StructField(\"CPE_SVOIP_C_IND\", T.BooleanType(), True),\n",
+							"                        T.StructField(\"WD_IPTV_IP_DES\", T.StringType(), True),\n",
+							"                        T.StructField(\"WD_IPTV_SUB_DES\", T.StringType(), True),\n",
+							"                        T.StructField(\"WD_IPTV_DGW_DES\", T.StringType(), True),\n",
+							"                        T.StructField(\"WD_IPTV_ADD_DES\", T.StringType(), True),\n",
+							"                        T.StructField(\"WD_PHONE_NUM\", T.StringType(), True),\n",
+							"                    ])),\n",
+							"                    T.StructField(\"GPON\", T.StructType([\n",
+							"                        T.StructField(\"CPE_OLT_MAN_DES\", T.StringType(), True),\n",
+							"                        T.StructField(\"CPE_OLT_NUM\", T.ShortType(), True),\n",
+							"                        T.StructField(\"CPE_OLT_C_NUM\", T.ShortType(), True),\n",
+							"                        T.StructField(\"CPE_OLT_P_NUM\", T.ShortType(), True),\n",
+							"                        T.StructField(\"CPE_OLT_T_DES\", T.StringType(), True),\n",
+							"                        T.StructField(\"CPE_TOL_NUM\", T.DecimalType(), True),\n",
+							"                        T.StructField(\"CPE_PON_ID\", T.StringType(), True),\n",
+							"                        T.StructField(\"CPE_ONT_TX_NUM\", T.DecimalType(), True),\n",
+							"                        T.StructField(\"CPE_ONT_RX_NUM\", T.DecimalType(), True),\n",
+							"                        T.StructField(\"OP_MOD_TEMP_NUM\", T.DecimalType(), True),\n",
+							"                    ]))\n",
+							"                ]))\n",
+							"            ]))\n",
+							"        ]))\n",
+							"    ]))\n",
+							"])\n",
+							""
+						],
+						"outputs": [],
+						"execution_count": 3
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"source_hidden": false,
+								"outputs_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"dataframe = (\n",
+							"    spark.read.format(\"json\")\n",
+							"    .json(f'{DEFAULT_PATH}{LANDING_ZONE_PATH}/devices-2022-12-06-21-01.json', schema=schema )\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 6
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"source_hidden": false,
+								"outputs_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"dataframe.write.format(\"delta\").option(\"overwriteSchema\", \"true\").mode(\"overwrite\").partitionBy(\"status\").save(BRONZE_PATH)\n",
+							""
+						],
+						"outputs": [],
+						"execution_count": 7
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"source_hidden": false,
+								"outputs_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							""
+						],
+						"outputs": []
+					}
+				]
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/samplelzbz')]",
+			"type": "Microsoft.Synapse/workspaces/bigDataPools",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"autoPause": {
+					"enabled": true,
+					"delayInMinutes": 5
+				},
+				"autoScale": {
+					"enabled": true,
+					"maxNodeCount": 3,
+					"minNodeCount": 3
+				},
+				"nodeCount": 3,
+				"nodeSize": "Small",
+				"nodeSizeFamily": "MemoryOptimized",
+				"sparkVersion": "3.2",
+				"libraryRequirements": {
+					"content": "    pandas\n",
+					"filename": "requirements.txt",
+					"time": "2022-12-29T03:17:27.3264974Z"
+				},
+				"isComputeIsolationEnabled": false,
+				"sparkConfigProperties": {
+					"configurationType": "File",
+					"filename": "config.txt",
+					"content": "    sparkshuffle.spill true\n",
+					"time": "2022-12-29T03:17:27.3264974Z"
+				},
+				"sessionLevelPackagesEnabled": true,
+				"customLibraries": [
+					{
+						"name": "CustomPackage-1.0-py3-none-any.whl",
+						"path": "b3dldev-synapse/libraries/CustomPackage-1.0-py3-none-any.whl",
+						"containerName": "prep",
+						"uploadedTimestamp": "0001-01-01T00:00:00+00:00",
+						"type": "whl"
+					}
+				],
+				"annotations": []
+			},
+			"dependsOn": [],
+			"location": "eastus2"
+		}
+	]
+}
