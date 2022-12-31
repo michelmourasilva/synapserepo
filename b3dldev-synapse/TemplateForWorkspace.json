@@ -22,6 +22,55 @@
 	},
 	"resources": [
 		{
+			"name": "[concat(parameters('workspaceName'), '/pipe-job-sample')]",
+			"type": "Microsoft.Synapse/workspaces/pipelines",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"activities": [
+					{
+						"name": "job",
+						"type": "SparkJob",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"sparkJob": {
+								"referenceName": "job-sample",
+								"type": "SparkJobDefinitionReference"
+							},
+							"targetBigDataPool": {
+								"referenceName": "samplelzbz",
+								"type": "BigDataPoolReference"
+							},
+							"executorSize": "Small",
+							"conf": {
+								"spark.dynamicAllocation.enabled": true,
+								"spark.dynamicAllocation.minExecutors": 1,
+								"spark.dynamicAllocation.maxExecutors": 2
+							},
+							"driverSize": "Small",
+							"numExecutors": 1
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {},
+					"cancelAfter": {}
+				},
+				"annotations": []
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/sparkJobDefinitions/job-sample')]",
+				"[concat(variables('workspaceId'), '/bigDataPools/samplelzbz')]"
+			]
+		},
+		{
 			"name": "[concat(parameters('workspaceName'), '/b3dldev-synapse-WorkspaceDefaultSqlServer')]",
 			"type": "Microsoft.Synapse/workspaces/linkedServices",
 			"apiVersion": "2019-06-01-preview",
@@ -135,10 +184,7 @@
 						"spark.autotune.trackingId": "96724114-f432-4306-a455-20473a9fa980"
 					},
 					"args": [
-						"--teste",
-						"123",
-						"--outroteste",
-						"456"
+						"--teste 123 --outroteste 456"
 					],
 					"jars": [],
 					"pyFiles": [
@@ -176,14 +222,11 @@
 						"spark.dynamicAllocation.enabled": "false",
 						"spark.dynamicAllocation.minExecutors": "2",
 						"spark.dynamicAllocation.maxExecutors": "2",
-						"spark.autotune.trackingId": "b36992fa-48c5-400b-ad4b-c1447afcff3a"
+						"spark.autotune.trackingId": "a78460d7-5339-4f13-b2c2-07dc0dc2439e"
 					}
 				},
 				"metadata": {
 					"saveOutput": true,
-					"synapse_widget": {
-						"version": "0.1"
-					},
 					"enableDebugMode": false,
 					"kernelspec": {
 						"name": "synapse_pyspark",
@@ -199,14 +242,12 @@
 						"endpoint": "https://b3dldev-synapse.dev.azuresynapse.net/livyApi/versions/2019-11-01-preview/sparkPools/samplelzbz",
 						"auth": {
 							"type": "AAD",
-							"authResource": "https://dev.azuresynapse.net",
-							"authHeader": null
+							"authResource": "https://dev.azuresynapse.net"
 						},
 						"sparkVersion": "3.2",
 						"nodeCount": 3,
 						"cores": 4,
-						"memory": 28,
-						"extraHeader": null
+						"memory": 28
 					},
 					"sessionKeepAliveTimeout": 30
 				},
@@ -233,6 +274,25 @@
 						],
 						"outputs": [],
 						"execution_count": 1
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"source_hidden": false,
+								"outputs_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"\"abfss://scripts@b3dldev.dfs.core.windows.net/common/CustomPackage-1.0-py3-none-any.whl\""
+						],
+						"outputs": [],
+						"execution_count": null
 					},
 					{
 						"cell_type": "code",
@@ -760,7 +820,8 @@
 						"source": [
 							""
 						],
-						"outputs": []
+						"outputs": [],
+						"execution_count": null
 					}
 				]
 			},
@@ -780,115 +841,27 @@
 					"maxNodeCount": 3,
 					"minNodeCount": 3
 				},
-				"nodeCount": 3,
+				"nodeCount": 0,
 				"nodeSize": "Small",
 				"nodeSizeFamily": "MemoryOptimized",
 				"sparkVersion": "3.2",
 				"libraryRequirements": {
 					"content": "    pandas\n",
 					"filename": "requirements.txt",
-					"time": "2022-12-29T03:17:27.3264974Z"
+					"time": "2022-12-31T14:14:09.8976429Z"
 				},
 				"isComputeIsolationEnabled": false,
 				"sparkConfigProperties": {
 					"configurationType": "File",
 					"filename": "config.txt",
 					"content": "    sparkshuffle.spill true\n",
-					"time": "2022-12-29T03:17:27.3264974Z"
+					"time": "2022-12-31T14:14:09.8976429Z"
 				},
 				"sessionLevelPackagesEnabled": true,
-				"customLibraries": [
-					{
-						"name": "CustomPackage-1.0-py3-none-any.whl",
-						"path": "b3dldev-synapse/libraries/CustomPackage-1.0-py3-none-any.whl",
-						"containerName": "prep",
-						"uploadedTimestamp": "0001-01-01T00:00:00+00:00",
-						"type": "whl"
-					}
-				],
 				"annotations": []
 			},
 			"dependsOn": [],
 			"location": "eastus2"
-		},
-		{
-			"name": "[concat(parameters('workspaceName'), '/pipe-job-sample')]",
-			"type": "Microsoft.Synapse/workspaces/pipelines",
-			"apiVersion": "2019-06-01-preview",
-			"properties": {
-				"activities": [
-					{
-						"name": "job",
-						"type": "SparkJob",
-						"dependsOn": [],
-						"policy": {
-							"timeout": "0.12:00:00",
-							"retry": 0,
-							"retryIntervalInSeconds": 30,
-							"secureOutput": false,
-							"secureInput": false
-						},
-						"userProperties": [],
-						"typeProperties": {
-							"sparkJob": {
-								"referenceName": "job-sample",
-								"type": "SparkJobDefinitionReference"
-							},
-							"targetBigDataPool": {
-								"referenceName": "samplelzbz",
-								"type": "BigDataPoolReference"
-							},
-							"executorSize": "Small",
-							"conf": {
-								"spark.dynamicAllocation.enabled": true,
-								"spark.dynamicAllocation.minExecutors": 1,
-								"spark.dynamicAllocation.maxExecutors": 2
-							},
-							"driverSize": "Small",
-							"numExecutors": 1
-						}
-					}
-				],
-				"policy": {
-					"elapsedTimeMetric": {},
-					"cancelAfter": {}
-				},
-				"annotations": []
-			},
-			"dependsOn": [
-				"[concat(variables('workspaceId'), '/sparkJobDefinitions/job-sample')]",
-				"[concat(variables('workspaceId'), '/bigDataPools/samplelzbz')]"
-			]
-		},
-		{
-			"name": "[concat(parameters('workspaceName'), '/hour')]",
-			"type": "Microsoft.Synapse/workspaces/triggers",
-			"apiVersion": "2019-06-01-preview",
-			"properties": {
-				"annotations": [],
-				"runtimeState": "Started",
-				"pipelines": [
-					{
-						"pipelineReference": {
-							"referenceName": "pipe-job-sample",
-							"type": "PipelineReference"
-						},
-						"parameters": {}
-					}
-				],
-				"type": "ScheduleTrigger",
-				"typeProperties": {
-					"recurrence": {
-						"frequency": "Hour",
-						"interval": 1,
-						"startTime": "2022-12-30T12:10:00",
-						"timeZone": "E. South America Standard Time"
-					}
-				}
-			},
-			"dependsOn": [
-				"[concat(variables('workspaceId'), '/pipelines/pipe-job-sample')]"
-			]
 		}
 	]
 }
