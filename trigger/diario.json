@@ -1,0 +1,17 @@
+{
+	"name": "diario",
+	"properties": {
+		"annotations": [],
+		"runtimeState": "Started",
+		"pipelines": [],
+		"type": "ScheduleTrigger",
+		"typeProperties": {
+			"recurrence": {
+				"frequency": "Minute",
+				"interval": 30,
+				"startTime": "2022-12-31T14:00:00Z",
+				"timeZone": "UTC"
+			}
+		}
+	}
+}
