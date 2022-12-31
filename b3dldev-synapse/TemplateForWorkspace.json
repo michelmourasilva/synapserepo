@@ -184,7 +184,10 @@
 						"spark.autotune.trackingId": "96724114-f432-4306-a455-20473a9fa980"
 					},
 					"args": [
-						"--teste 123 --outroteste 456"
+						"--teste",
+						"123",
+						"--outroteste",
+						"456"
 					],
 					"jars": [],
 					"pyFiles": [
@@ -222,7 +225,7 @@
 						"spark.dynamicAllocation.enabled": "false",
 						"spark.dynamicAllocation.minExecutors": "2",
 						"spark.dynamicAllocation.maxExecutors": "2",
-						"spark.autotune.trackingId": "708b8962-8c7c-473f-b03b-2926f4b38022"
+						"spark.autotune.trackingId": "1033c9d9-94ba-4235-b10f-3e5725092efe"
 					}
 				},
 				"metadata": {
@@ -247,15 +250,13 @@
 						"sparkVersion": "3.2",
 						"nodeCount": 3,
 						"cores": 4,
-						"memory": 28,
-						"automaticScaleJobs": false
+						"memory": 28
 					},
 					"sessionKeepAliveTimeout": 30
 				},
 				"cells": [
 					{
 						"cell_type": "code",
-						"metadata": {},
 						"source": [
 							"import pyspark\n",
 							"from pyspark.sql import SparkSession\n",
@@ -824,27 +825,66 @@
 					"maxNodeCount": 3,
 					"minNodeCount": 3
 				},
-				"nodeCount": 0,
+				"nodeCount": 3,
 				"nodeSize": "Small",
 				"nodeSizeFamily": "MemoryOptimized",
 				"sparkVersion": "3.2",
 				"libraryRequirements": {
 					"content": "    pandas\n",
 					"filename": "requirements.txt",
-					"time": "2022-12-31T14:14:09.8976429Z"
+					"time": "2022-12-31T15:30:42.3944689Z"
 				},
 				"isComputeIsolationEnabled": false,
 				"sparkConfigProperties": {
 					"configurationType": "File",
 					"filename": "config.txt",
 					"content": "    sparkshuffle.spill true\n",
-					"time": "2022-12-31T14:14:09.8976429Z"
+					"time": "2022-12-31T15:30:42.3944689Z"
 				},
 				"sessionLevelPackagesEnabled": true,
+				"customLibraries": [
+					{
+						"name": "CustomPackage-1.0-py3-none-any.whl",
+						"path": "b3dldev-synapse/libraries/CustomPackage-1.0-py3-none-any.whl",
+						"containerName": "prep",
+						"uploadedTimestamp": "0001-01-01T00:00:00+00:00",
+						"type": "whl"
+					}
+				],
 				"annotations": []
 			},
 			"dependsOn": [],
 			"location": "eastus2"
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/diario')]",
+			"type": "Microsoft.Synapse/workspaces/triggers",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"annotations": [],
+				"runtimeState": "Started",
+				"pipelines": [
+					{
+						"pipelineReference": {
+							"referenceName": "pipe-job-sample",
+							"type": "PipelineReference"
+						},
+						"parameters": {}
+					}
+				],
+				"type": "ScheduleTrigger",
+				"typeProperties": {
+					"recurrence": {
+						"frequency": "Minute",
+						"interval": 30,
+						"startTime": "2022-12-31T14:00:00Z",
+						"timeZone": "UTC"
+					}
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/pipelines/pipe-job-sample')]"
+			]
 		}
 	]
 }
