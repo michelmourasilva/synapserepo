@@ -4,7 +4,7 @@
 		"nbformat": 4,
 		"nbformat_minor": 2,
 		"bigDataPool": {
-			"referenceName": "samplelzbz",
+			"referenceName": "samplenotebook",
 			"type": "BigDataPoolReference"
 		},
 		"sessionProperties": {
@@ -18,7 +18,7 @@
 				"spark.dynamicAllocation.enabled": "false",
 				"spark.dynamicAllocation.minExecutors": "2",
 				"spark.dynamicAllocation.maxExecutors": "2",
-				"spark.autotune.trackingId": "1033c9d9-94ba-4235-b10f-3e5725092efe"
+				"spark.autotune.trackingId": "d82ff81f-4441-483a-b1c1-113b98138d99"
 			}
 		},
 		"metadata": {
@@ -32,10 +32,10 @@
 				"name": "python"
 			},
 			"a365ComputeOptions": {
-				"id": "/subscriptions/ecec4f91-c527-41b9-bfb2-4a407f70da1e/resourceGroups/b3dl-dev/providers/Microsoft.Synapse/workspaces/b3dldev-synapse/bigDataPools/samplelzbz",
-				"name": "samplelzbz",
+				"id": "/subscriptions/ecec4f91-c527-41b9-bfb2-4a407f70da1e/resourceGroups/b3dl-dev/providers/Microsoft.Synapse/workspaces/b3dldev-synapse/bigDataPools/samplenotebook",
+				"name": "samplenotebook",
 				"type": "Spark",
-				"endpoint": "https://b3dldev-synapse.dev.azuresynapse.net/livyApi/versions/2019-11-01-preview/sparkPools/samplelzbz",
+				"endpoint": "https://b3dldev-synapse.dev.azuresynapse.net/livyApi/versions/2019-11-01-preview/sparkPools/samplenotebook",
 				"auth": {
 					"type": "AAD",
 					"authResource": "https://dev.azuresynapse.net"
@@ -69,7 +69,161 @@
 					"\n",
 					"from customPackage.common import AzureHandler, teste"
 				],
-				"execution_count": 1
+				"execution_count": 61
+			},
+			{
+				"cell_type": "code",
+				"metadata": {
+					"jupyter": {
+						"source_hidden": false,
+						"outputs_hidden": false
+					},
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"%fs ls /synapse/CustomPackage-1.1-py3-none-any.whl\n",
+					"\n",
+					"\n",
+					"\n",
+					""
+				],
+				"execution_count": 55
+			},
+			{
+				"cell_type": "code",
+				"metadata": {
+					"jupyter": {
+						"source_hidden": false,
+						"outputs_hidden": false
+					},
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"!pip install /CustomPackage-1.1-py3-none-any.whl"
+				],
+				"execution_count": 53
+			},
+			{
+				"cell_type": "code",
+				"metadata": {
+					"jupyter": {
+						"source_hidden": false,
+						"outputs_hidden": false
+					},
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"!wget https://b3dldev.blob.core.windows.net/scripts/common/CustomPackage-1.1-py3-none-any.whl?sp=r&st=2023-01-01T00:01:20Z&se=2023-01-01T08:01:20Z&spr=https&sv=2021-06-08&sr=b&sig=ay403EXHznmomBX9pYSxxrYnNmJhFEclvuI0wajy5l0%3D"
+				],
+				"execution_count": 49
+			},
+			{
+				"cell_type": "code",
+				"metadata": {
+					"jupyter": {
+						"source_hidden": false,
+						"outputs_hidden": false
+					},
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"import subprocess\n",
+					"\n",
+					"# Faça o download do arquivo whl para o cluster Spark\n",
+					"result = subprocess.run([\"wget\", \"https://b3dldev.blob.core.windows.net/scripts/common/CustomPackage-1.1-py3-none-any.whl?sp=r&st=2023-01-01T00:01:20Z&se=2023-01-01T08:01:20Z&spr=https&sv=2021-06-08&sr=b&sig=ay403EXHznmomBX9pYSxxrYnNmJhFEclvuI0wajy5l0%3D\", \"-O\", \"CustomPackage-1.1-py3-none-any.whl\"])\n",
+					"\n",
+					"# Verifique o código de saída do comando\n",
+					"if result.returncode == 0:\n",
+					"    print(\"Arquivo baixado com sucesso\")\n",
+					"else:\n",
+					"    print(\"Erro ao baixar o arquivo\")\n",
+					""
+				],
+				"execution_count": 59
+			},
+			{
+				"cell_type": "code",
+				"metadata": {
+					"jupyter": {
+						"source_hidden": false,
+						"outputs_hidden": false
+					},
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"\n",
+					"# Instale a biblioteca\n",
+					"result = subprocess.run([\"pip\", \"install\", \"CustomPackage-1.1-py3-none-any.whl\"])\n",
+					"\n",
+					"# Verifique o código de saída do comando\n",
+					"if result.returncode == 0:\n",
+					"    print(\"Biblioteca instalada com sucesso\")\n",
+					"else:\n",
+					"    print(\"Erro ao instalar a biblioteca\")"
+				],
+				"execution_count": 60
+			},
+			{
+				"cell_type": "code",
+				"metadata": {
+					"jupyter": {
+						"source_hidden": false,
+						"outputs_hidden": false
+					},
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"!pip install https://b3dldev.blob.core.windows.net/scripts/common/CustomPackage-1.1-py3-none-any.whl?sp=r&st=2023-01-01T00:01:20Z&se=2023-01-01T08:01:20Z&spr=https&sv=2021-06-08&sr=b&sig=ay403EXHznmomBX9pYSxxrYnNmJhFEclvuI0wajy5l0%3D"
+				],
+				"execution_count": 47
+			},
+			{
+				"cell_type": "code",
+				"metadata": {
+					"jupyter": {
+						"source_hidden": false,
+						"outputs_hidden": false
+					},
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"import subprocess\n",
+					"\n",
+					"# Execute um comando Bash\n",
+					"result = subprocess.run([\"pip\", \"install\", \"/synapse/CustomPackage-1.1-py3-none-any.whl\"])\n",
+					"\n",
+					"# Imprima o resultado\n",
+					"print(result)"
+				],
+				"execution_count": 56
 			},
 			{
 				"cell_type": "code",
@@ -575,6 +729,24 @@
 					""
 				],
 				"execution_count": 7
+			},
+			{
+				"cell_type": "code",
+				"metadata": {
+					"jupyter": {
+						"source_hidden": false,
+						"outputs_hidden": false
+					},
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"spark.stop()"
+				],
+				"execution_count": 62
 			},
 			{
 				"cell_type": "code",
