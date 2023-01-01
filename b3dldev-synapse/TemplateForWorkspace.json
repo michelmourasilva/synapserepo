@@ -22,6 +22,15 @@
 	},
 	"resources": [
 		{
+			"name": "[concat(parameters('workspaceName'), '/samplenotebook')]",
+			"type": "Microsoft.Synapse/workspaces/bigDataPools",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"annotations": []
+			},
+			"dependsOn": []
+		},
+		{
 			"name": "[concat(parameters('workspaceName'), '/pipe-job-sample')]",
 			"type": "Microsoft.Synapse/workspaces/pipelines",
 			"apiVersion": "2019-06-01-preview",
@@ -184,10 +193,7 @@
 						"spark.autotune.trackingId": "96724114-f432-4306-a455-20473a9fa980"
 					},
 					"args": [
-						"--teste",
-						"123",
-						"--outroteste",
-						"456"
+						"--teste 123 --outroteste 456"
 					],
 					"jars": [],
 					"pyFiles": [
@@ -211,7 +217,7 @@
 				"nbformat": 4,
 				"nbformat_minor": 2,
 				"bigDataPool": {
-					"referenceName": "samplelzbz",
+					"referenceName": "samplenotebook",
 					"type": "BigDataPoolReference"
 				},
 				"sessionProperties": {
@@ -225,7 +231,7 @@
 						"spark.dynamicAllocation.enabled": "false",
 						"spark.dynamicAllocation.minExecutors": "2",
 						"spark.dynamicAllocation.maxExecutors": "2",
-						"spark.autotune.trackingId": "1033c9d9-94ba-4235-b10f-3e5725092efe"
+						"spark.autotune.trackingId": "d82ff81f-4441-483a-b1c1-113b98138d99"
 					}
 				},
 				"metadata": {
@@ -239,10 +245,10 @@
 						"name": "python"
 					},
 					"a365ComputeOptions": {
-						"id": "/subscriptions/ecec4f91-c527-41b9-bfb2-4a407f70da1e/resourceGroups/b3dl-dev/providers/Microsoft.Synapse/workspaces/b3dldev-synapse/bigDataPools/samplelzbz",
-						"name": "samplelzbz",
+						"id": "/subscriptions/ecec4f91-c527-41b9-bfb2-4a407f70da1e/resourceGroups/b3dl-dev/providers/Microsoft.Synapse/workspaces/b3dldev-synapse/bigDataPools/samplenotebook",
+						"name": "samplenotebook",
 						"type": "Spark",
-						"endpoint": "https://b3dldev-synapse.dev.azuresynapse.net/livyApi/versions/2019-11-01-preview/sparkPools/samplelzbz",
+						"endpoint": "https://b3dldev-synapse.dev.azuresynapse.net/livyApi/versions/2019-11-01-preview/sparkPools/samplenotebook",
 						"auth": {
 							"type": "AAD",
 							"authResource": "https://dev.azuresynapse.net"
@@ -276,7 +282,168 @@
 							"from customPackage.common import AzureHandler, teste"
 						],
 						"outputs": [],
-						"execution_count": 1
+						"execution_count": 61
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"source_hidden": false,
+								"outputs_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"%fs ls /synapse/CustomPackage-1.1-py3-none-any.whl\n",
+							"\n",
+							"\n",
+							"\n",
+							""
+						],
+						"outputs": [],
+						"execution_count": 55
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"source_hidden": false,
+								"outputs_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"!pip install /CustomPackage-1.1-py3-none-any.whl"
+						],
+						"outputs": [],
+						"execution_count": 53
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"source_hidden": false,
+								"outputs_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"!wget https://b3dldev.blob.core.windows.net/scripts/common/CustomPackage-1.1-py3-none-any.whl?sp=r&st=2023-01-01T00:01:20Z&se=2023-01-01T08:01:20Z&spr=https&sv=2021-06-08&sr=b&sig=ay403EXHznmomBX9pYSxxrYnNmJhFEclvuI0wajy5l0%3D"
+						],
+						"outputs": [],
+						"execution_count": 49
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"source_hidden": false,
+								"outputs_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"import subprocess\n",
+							"\n",
+							"# Faça o download do arquivo whl para o cluster Spark\n",
+							"result = subprocess.run([\"wget\", \"https://b3dldev.blob.core.windows.net/scripts/common/CustomPackage-1.1-py3-none-any.whl?sp=r&st=2023-01-01T00:01:20Z&se=2023-01-01T08:01:20Z&spr=https&sv=2021-06-08&sr=b&sig=ay403EXHznmomBX9pYSxxrYnNmJhFEclvuI0wajy5l0%3D\", \"-O\", \"CustomPackage-1.1-py3-none-any.whl\"])\n",
+							"\n",
+							"# Verifique o código de saída do comando\n",
+							"if result.returncode == 0:\n",
+							"    print(\"Arquivo baixado com sucesso\")\n",
+							"else:\n",
+							"    print(\"Erro ao baixar o arquivo\")\n",
+							""
+						],
+						"outputs": [],
+						"execution_count": 59
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"source_hidden": false,
+								"outputs_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"\n",
+							"# Instale a biblioteca\n",
+							"result = subprocess.run([\"pip\", \"install\", \"CustomPackage-1.1-py3-none-any.whl\"])\n",
+							"\n",
+							"# Verifique o código de saída do comando\n",
+							"if result.returncode == 0:\n",
+							"    print(\"Biblioteca instalada com sucesso\")\n",
+							"else:\n",
+							"    print(\"Erro ao instalar a biblioteca\")"
+						],
+						"outputs": [],
+						"execution_count": 60
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"source_hidden": false,
+								"outputs_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"!pip install https://b3dldev.blob.core.windows.net/scripts/common/CustomPackage-1.1-py3-none-any.whl?sp=r&st=2023-01-01T00:01:20Z&se=2023-01-01T08:01:20Z&spr=https&sv=2021-06-08&sr=b&sig=ay403EXHznmomBX9pYSxxrYnNmJhFEclvuI0wajy5l0%3D"
+						],
+						"outputs": [],
+						"execution_count": 47
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"source_hidden": false,
+								"outputs_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"import subprocess\n",
+							"\n",
+							"# Execute um comando Bash\n",
+							"result = subprocess.run([\"pip\", \"install\", \"/synapse/CustomPackage-1.1-py3-none-any.whl\"])\n",
+							"\n",
+							"# Imprima o resultado\n",
+							"print(result)"
+						],
+						"outputs": [],
+						"execution_count": 56
 					},
 					{
 						"cell_type": "code",
@@ -802,6 +969,25 @@
 							}
 						},
 						"source": [
+							"spark.stop()"
+						],
+						"outputs": [],
+						"execution_count": 62
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"source_hidden": false,
+								"outputs_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
 							""
 						],
 						"outputs": [],
@@ -821,7 +1007,7 @@
 					"delayInMinutes": 5
 				},
 				"autoScale": {
-					"enabled": true,
+					"enabled": false,
 					"maxNodeCount": 3,
 					"minNodeCount": 3
 				},
@@ -832,20 +1018,20 @@
 				"libraryRequirements": {
 					"content": "    pandas\n",
 					"filename": "requirements.txt",
-					"time": "2022-12-31T15:30:42.3944689Z"
+					"time": "2022-12-31T21:42:41.387714Z"
 				},
 				"isComputeIsolationEnabled": false,
 				"sparkConfigProperties": {
 					"configurationType": "File",
 					"filename": "config.txt",
 					"content": "    sparkshuffle.spill true\n",
-					"time": "2022-12-31T15:30:42.3944689Z"
+					"time": "2022-12-31T21:42:41.387714Z"
 				},
 				"sessionLevelPackagesEnabled": true,
 				"customLibraries": [
 					{
-						"name": "CustomPackage-1.0-py3-none-any.whl",
-						"path": "b3dldev-synapse/libraries/CustomPackage-1.0-py3-none-any.whl",
+						"name": "CustomPackage-1.1-py3-none-any.whl",
+						"path": "b3dldev-synapse/libraries/CustomPackage-1.1-py3-none-any.whl",
 						"containerName": "prep",
 						"uploadedTimestamp": "0001-01-01T00:00:00+00:00",
 						"type": "whl"
@@ -857,34 +1043,40 @@
 			"location": "eastus2"
 		},
 		{
-			"name": "[concat(parameters('workspaceName'), '/diario')]",
-			"type": "Microsoft.Synapse/workspaces/triggers",
+			"name": "[concat(parameters('workspaceName'), '/samplenotebook')]",
+			"type": "Microsoft.Synapse/workspaces/bigDataPools",
 			"apiVersion": "2019-06-01-preview",
 			"properties": {
-				"annotations": [],
-				"runtimeState": "Started",
-				"pipelines": [
-					{
-						"pipelineReference": {
-							"referenceName": "pipe-job-sample",
-							"type": "PipelineReference"
-						},
-						"parameters": {}
-					}
-				],
-				"type": "ScheduleTrigger",
-				"typeProperties": {
-					"recurrence": {
-						"frequency": "Minute",
-						"interval": 30,
-						"startTime": "2022-12-31T14:00:00Z",
-						"timeZone": "UTC"
-					}
-				}
+				"autoPause": {
+					"enabled": true,
+					"delayInMinutes": 5
+				},
+				"autoScale": {
+					"enabled": false,
+					"maxNodeCount": 0,
+					"minNodeCount": 0
+				},
+				"nodeCount": 3,
+				"nodeSize": "Small",
+				"nodeSizeFamily": "MemoryOptimized",
+				"sparkVersion": "3.2",
+				"libraryRequirements": {
+					"content": "    pandas\n",
+					"filename": "requirements.txt",
+					"time": "2022-12-31T22:38:11.095355Z"
+				},
+				"isComputeIsolationEnabled": false,
+				"sparkConfigProperties": {
+					"configurationType": "File",
+					"filename": "config.txt",
+					"content": "    sparkshuffle.spill true\n",
+					"time": "2022-12-31T22:38:11.095355Z"
+				},
+				"sessionLevelPackagesEnabled": true,
+				"annotations": []
 			},
-			"dependsOn": [
-				"[concat(variables('workspaceId'), '/pipelines/pipe-job-sample')]"
-			]
+			"dependsOn": [],
+			"location": "eastus2"
 		}
 	]
 }
